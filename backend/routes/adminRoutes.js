@@ -41,10 +41,24 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
-  const token = jwt.sign({ id: admin._id }, process.env.JWT_SECRET, {
+  const token = jwt.sign({ email: admin.email }, process.env.JWT_SECRET, {
     expiresIn: '1h',
   });
+
   res.json({ token });
+});
+
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    // console.log(req.admin.email);
+    const admin = await Admin.findOne({ email: req.admin.email }).select(
+      '-password'
+    ); // Exclude password
+    if (!admin) return res.status(404).json({ message: 'Admin not found' });
+    res.json(admin);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 module.exports = router;

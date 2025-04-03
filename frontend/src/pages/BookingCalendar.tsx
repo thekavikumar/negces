@@ -1,59 +1,68 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { BookingForm } from '@/components/BookingForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { BookingSlot, User, mockBookings } from '@/types';
 import { format, isSameDay } from 'date-fns';
+import { useAuthStore } from '@/hooks/useAuthStore';
 
 const BookingCalendar = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuthStore();
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [bookingsForDate, setBookingsForDate] = useState<BookingSlot[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
-  
+
   useEffect(() => {
-    // Get user from localStorage
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    } else {
+    if (!user) {
       navigate('/login');
     }
   }, [navigate]);
-  
+
   useEffect(() => {
     if (selectedDate) {
       // In real app, fetch bookings from API
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-      const filtered = mockBookings.filter(booking => booking.date === formattedDate);
+      const filtered = mockBookings.filter(
+        (booking) => booking.date === formattedDate
+      );
       setBookingsForDate(filtered);
     } else {
       setBookingsForDate([]);
     }
   }, [selectedDate, dialogOpen]);
-  
+
   const isDateBooked = (date: Date) => {
     const formattedDate = format(date, 'yyyy-MM-dd');
-    return mockBookings.some(booking => booking.date === formattedDate);
+    return mockBookings.some((booking) => booking.date === formattedDate);
   };
-  
+
   const handleNewBooking = () => {
     if (selectedDate) {
       setDialogOpen(true);
     }
   };
-  
+
   const handleDialogClose = () => {
     setDialogOpen(false);
   };
-  
+
   return (
     <DashboardLayout>
       <div className="flex flex-col space-y-6">
@@ -69,13 +78,15 @@ const BookingCalendar = () => {
             New Booking
           </Button>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Calendar */}
           <Card className="md:col-span-1">
             <CardHeader>
               <CardTitle>Select Date</CardTitle>
-              <CardDescription>Choose a day to view or create bookings</CardDescription>
+              <CardDescription>
+                Choose a day to view or create bookings
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Calendar
@@ -87,17 +98,22 @@ const BookingCalendar = () => {
                   booked: (date) => isDateBooked(date),
                 }}
                 modifiersStyles={{
-                  booked: { fontWeight: 'bold', backgroundColor: 'hsl(var(--primary) / 0.1)' }
+                  booked: {
+                    fontWeight: 'bold',
+                    backgroundColor: 'hsl(var(--primary) / 0.1)',
+                  },
                 }}
               />
             </CardContent>
           </Card>
-          
+
           {/* Bookings for selected date */}
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>
-                {selectedDate ? format(selectedDate, 'PPPP') : 'No date selected'}
+                {selectedDate
+                  ? format(selectedDate, 'PPPP')
+                  : 'No date selected'}
               </CardTitle>
               <CardDescription>
                 {bookingsForDate.length} bookings scheduled
@@ -124,7 +140,8 @@ const BookingCalendar = () => {
                 </div>
               ) : selectedDate ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No bookings for this date. Create a new booking to get started.
+                  No bookings for this date. Create a new booking to get
+                  started.
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
@@ -135,7 +152,7 @@ const BookingCalendar = () => {
           </Card>
         </div>
       </div>
-      
+
       {/* New Booking Dialog */}
       {user && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -143,9 +160,9 @@ const BookingCalendar = () => {
             <DialogHeader>
               <DialogTitle>Create New Booking</DialogTitle>
             </DialogHeader>
-            <BookingForm 
-              selectedDate={selectedDate} 
-              onBookingComplete={handleDialogClose} 
+            <BookingForm
+              selectedDate={selectedDate}
+              onBookingComplete={handleDialogClose}
               currentUser={user}
             />
           </DialogContent>

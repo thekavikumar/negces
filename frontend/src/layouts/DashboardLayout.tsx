@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/Navbar';
@@ -11,6 +10,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/hooks/useAuthStore';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -18,13 +18,10 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  
+  const { user } = useAuthStore();
+
   useEffect(() => {
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    } else {
+    if (!user) {
       navigate('/login');
     }
   }, [navigate]);
@@ -49,15 +46,14 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       path: '/computers',
       icon: Computer,
     },
-    ...(user.role === 'super_admin' 
-      ? [{ title: 'Manage Admins', path: '/admins', icon: Users }] 
-      : []
-    ),
+    ...(user.role === 'super_admin'
+      ? [{ title: 'Manage Admins', path: '/admins', icon: Users }]
+      : []),
     {
       title: 'Settings',
       path: '/settings',
       icon: Settings,
-    }
+    },
   ];
 
   return (
@@ -71,11 +67,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <button
                 key={item.path}
                 className={cn(
-                  "w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm transition-colors",
-                  "hover:bg-accent/10",
+                  'w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm transition-colors',
+                  'hover:bg-accent/10',
                   location.pathname === item.path
-                    ? "bg-accent/10 text-accent-foreground font-medium"
-                    : "text-muted-foreground"
+                    ? 'bg-accent/10 text-accent-foreground font-medium'
+                    : 'text-muted-foreground'
                 )}
                 onClick={() => navigate(item.path)}
               >
@@ -85,11 +81,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             ))}
           </nav>
         </aside>
-        
+
         {/* Main content */}
-        <main className="flex-1 p-6">
-          {children}
-        </main>
+        <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
   );

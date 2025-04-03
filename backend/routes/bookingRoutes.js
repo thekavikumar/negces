@@ -6,6 +6,20 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
+// Fetch All Bookings
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    console.log('Fetching all bookings...');
+    const bookings = await Booking.find().populate('student computer');
+    console.log('Bookings fetched:', bookings);
+    if (!bookings)
+      return res.status(404).json({ message: 'No bookings found' });
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching bookings', error });
+  }
+});
+
 // Book a Computer (No Overlaps, with Transactions)
 router.post('/', authMiddleware, async (req, res) => {
   const { student, computer, startTime, endTime } = req.body;
@@ -49,12 +63,13 @@ router.post('/', authMiddleware, async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
+    // TODO: Uncomment and implement email sending logic
     // Send Email Notification
-    sendEmail(
-      'student@example.com',
-      'Booking Confirmation',
-      `Your booking is confirmed!`
-    );
+    // sendEmail(
+    //   'student@example.com',
+    //   'Booking Confirmation',
+    //   `Your booking is confirmed!`
+    // );
 
     res.json(booking);
   } catch (error) {

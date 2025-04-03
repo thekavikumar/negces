@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -10,13 +9,8 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+} from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Form,
   FormControl,
@@ -25,23 +19,26 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+} from '@/components/ui/form';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useAuthStore } from '@/hooks/useAuthStore';
 
 const profileFormSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-  email: z.string().email({ message: "Please enter a valid email address" }),
+  name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
+  email: z.string().email({ message: 'Please enter a valid email address' }),
 });
 
 const emailFormSchema = z.object({
   enableEmailNotifications: z.boolean(),
   ccAdmin: z.boolean(),
-  emailTemplate: z.string().min(10, { message: "Template must be at least 10 characters" }),
+  emailTemplate: z
+    .string()
+    .min(10, { message: 'Template must be at least 10 characters' }),
 });
 
 const Settings = () => {
@@ -49,20 +46,18 @@ const Settings = () => {
   const [emailSettings, setEmailSettings] = useState({
     enableEmailNotifications: true,
     ccAdmin: true,
-    emailTemplate: "Dear {studentName},\n\nYour booking has been confirmed for {date} from {startTime} to {endTime} on {computerName}.\n\nThank you,\nCodeLab Bookings",
+    emailTemplate:
+      'Dear {studentName},\n\nYour booking has been confirmed for {date} from {startTime} to {endTime} on {computerName}.\n\nThank you,\nCodeLab Bookings',
   });
-  
+
   const { toast } = useToast();
-  
-  // Get current user
-  const userString = localStorage.getItem('currentUser');
-  const user = userString ? JSON.parse(userString) : null;
+  const { user } = useAuthStore();
 
   const profileForm = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
-      name: user?.name || "",
-      email: user?.email || "",
+      name: user?.name || '',
+      email: user?.email || '',
     },
   });
 
@@ -73,7 +68,7 @@ const Settings = () => {
 
   const onProfileSubmit = (data: z.infer<typeof profileFormSchema>) => {
     setIsUpdating(true);
-    
+
     // Simulate API call
     setTimeout(() => {
       // Update local storage
@@ -81,18 +76,18 @@ const Settings = () => {
         const updatedUser = { ...user, name: data.name, email: data.email };
         localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       }
-      
+
       setIsUpdating(false);
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been updated successfully.",
+        title: 'Profile Updated',
+        description: 'Your profile has been updated successfully.',
       });
     }, 1000);
   };
 
   const onEmailSettingsSubmit = (data: z.infer<typeof emailFormSchema>) => {
     setIsUpdating(true);
-    
+
     // Simulate API call
     setTimeout(() => {
       // Fix: Ensure all required properties are present in the data before setting state
@@ -103,8 +98,9 @@ const Settings = () => {
       });
       setIsUpdating(false);
       toast({
-        title: "Email Settings Updated",
-        description: "Email notification settings have been updated successfully.",
+        title: 'Email Settings Updated',
+        description:
+          'Email notification settings have been updated successfully.',
       });
     }, 1000);
   };
@@ -125,7 +121,7 @@ const Settings = () => {
             <TabsTrigger value="email">Email Notifications</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="profile" className="space-y-4">
             <Card>
               <CardHeader>
@@ -157,7 +153,12 @@ const Settings = () => {
                         <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="Your email" type="email" {...field} readOnly={user?.role === 'admin'} />
+                            <Input
+                              placeholder="Your email"
+                              type="email"
+                              {...field}
+                              readOnly={user?.role === 'admin'}
+                            />
                           </FormControl>
                           <FormMessage />
                           {user?.role === 'admin' && (
@@ -171,14 +172,14 @@ const Settings = () => {
                   </CardContent>
                   <CardFooter>
                     <Button type="submit" disabled={isUpdating}>
-                      {isUpdating ? "Saving..." : "Save Changes"}
+                      {isUpdating ? 'Saving...' : 'Save Changes'}
                     </Button>
                   </CardFooter>
                 </form>
               </Form>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="email" className="space-y-4">
             <Card>
               <CardHeader>
@@ -212,7 +213,7 @@ const Settings = () => {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={emailForm.control}
                       name="ccAdmin"
@@ -230,13 +231,15 @@ const Settings = () => {
                             <Switch
                               checked={field.value}
                               onCheckedChange={field.onChange}
-                              disabled={!emailForm.getValues("enableEmailNotifications")}
+                              disabled={
+                                !emailForm.getValues('enableEmailNotifications')
+                              }
                             />
                           </FormControl>
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={emailForm.control}
                       name="emailTemplate"
@@ -248,11 +251,15 @@ const Settings = () => {
                               className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                               placeholder="Email template"
                               {...field}
-                              disabled={!emailForm.getValues("enableEmailNotifications")}
+                              disabled={
+                                !emailForm.getValues('enableEmailNotifications')
+                              }
                             />
                           </FormControl>
                           <FormDescription>
-                            You can use {"{studentName}"}, {"{date}"}, {"{startTime}"}, {"{endTime}"}, {"{computerName}"} as variables.
+                            You can use {'{studentName}'}, {'{date}'},{' '}
+                            {'{startTime}'}, {'{endTime}'}, {'{computerName}'}{' '}
+                            as variables.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -260,25 +267,26 @@ const Settings = () => {
                     />
                   </CardContent>
                   <CardFooter>
-                    <Button 
-                      type="submit" 
-                      disabled={isUpdating || !emailForm.getValues("enableEmailNotifications")}
+                    <Button
+                      type="submit"
+                      disabled={
+                        isUpdating ||
+                        !emailForm.getValues('enableEmailNotifications')
+                      }
                     >
-                      {isUpdating ? "Saving..." : "Save Changes"}
+                      {isUpdating ? 'Saving...' : 'Save Changes'}
                     </Button>
                   </CardFooter>
                 </form>
               </Form>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="security" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Password</CardTitle>
-                <CardDescription>
-                  Change your password here.
-                </CardDescription>
+                <CardDescription>Change your password here.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">

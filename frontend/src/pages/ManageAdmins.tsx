@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card";
+} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -18,7 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +25,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
@@ -34,41 +33,41 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
+} from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
 import { User, mockUsers } from '@/types';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { UserPlus, UserMinus, Mail } from 'lucide-react';
+import { useAuthStore } from '@/hooks/useAuthStore';
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-  email: z.string().email({ message: "Please enter a valid email address" }),
+  name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
+  email: z.string().email({ message: 'Please enter a valid email address' }),
 });
 
 const ManageAdmins = () => {
   const [admins, setAdmins] = useState<User[]>(
-    mockUsers.filter(user => user.role === 'admin')
+    mockUsers.filter((user) => user.role === 'admin')
   );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      email: "",
+      name: '',
+      email: '',
     },
   });
 
+  const { user } = useAuthStore();
   // Check if the current user is a super admin
-  const currentUserString = localStorage.getItem('currentUser');
-  const currentUser = currentUserString ? JSON.parse(currentUserString) : null;
-  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isSuperAdmin = user?.role === 'super_admin';
 
   // Redirect if not super admin
   if (!isSuperAdmin) {
@@ -87,27 +86,27 @@ const ManageAdmins = () => {
     setAdmins([...admins, newAdmin]);
     setIsDialogOpen(false);
     form.reset();
-    
+
     toast({
-      title: "Admin Added",
+      title: 'Admin Added',
       description: `${newAdmin.name} has been added as an admin.`,
     });
   };
 
   const handleDeleteAdmin = (id: string) => {
-    const adminToDelete = admins.find(admin => admin.id === id);
-    setAdmins(admins.filter(admin => admin.id !== id));
-    
+    const adminToDelete = admins.find((admin) => admin.id === id);
+    setAdmins(admins.filter((admin) => admin.id !== id));
+
     toast({
-      title: "Admin Removed",
+      title: 'Admin Removed',
       description: `${adminToDelete?.name} has been removed from admins.`,
-      variant: "destructive",
+      variant: 'destructive',
     });
   };
 
   const handleSendInvite = (email: string) => {
     toast({
-      title: "Invite Sent",
+      title: 'Invite Sent',
       description: `An invitation email has been sent to ${email}.`,
     });
   };
@@ -153,16 +152,16 @@ const ManageAdmins = () => {
                     <TableCell>{admin.email}</TableCell>
                     <TableCell>Admin</TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => handleSendInvite(admin.email)}
                       >
                         <Mail className="h-4 w-4 mr-2" />
                         Send Invite
                       </Button>
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteAdmin(admin.id)}
                       >
@@ -185,7 +184,7 @@ const ManageAdmins = () => {
               Enter the details of the new administrator below.
             </DialogDescription>
           </DialogHeader>
-          
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -201,7 +200,7 @@ const ManageAdmins = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="email"
@@ -209,15 +208,23 @@ const ManageAdmins = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="admin@example.com" type="email" {...field} />
+                      <Input
+                        placeholder="admin@example.com"
+                        type="email"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
                   Cancel
                 </Button>
                 <Button type="submit">Add Administrator</Button>
