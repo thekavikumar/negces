@@ -53,7 +53,8 @@ import {
 import { useAuthStore } from '@/hooks/useAuthStore';
 
 const Computers = () => {
-  const [computers, setComputers] = useState<ComputerSystem[]>(mockComputers);
+  const { user, token } = useAuthStore();
+  const [computers, setComputers] = useState<ComputerSystem[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingComputer, setEditingComputer] = useState<ComputerSystem | null>(
     null
@@ -62,9 +63,9 @@ const Computers = () => {
     name: '',
     location: '',
     specifications: '',
-    isAvailable: true,
+    availability: true,
   });
-  const { user } = useAuthStore();
+  // const [loading, setLoading] = useState(true);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(new Date());
@@ -72,6 +73,31 @@ const Computers = () => {
   const { toast } = useToast();
 
   const isSuperAdmin = user?.role === 'super_admin';
+
+  useEffect(() => {
+    const fetchComputers = async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/computers`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const data = await response.json();
+        setComputers(data);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load computers',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    fetchComputers();
+  }, [computers]);
 
   const checkSuperAdminPermission = () => {
     if (!isSuperAdmin) {
@@ -85,24 +111,43 @@ const Computers = () => {
     return true;
   };
 
-  const handleAddComputer = () => {
+  const handleAddComputer = async () => {
     if (!checkSuperAdminPermission()) return;
 
-    const computerId = `${computers.length + 1}`;
     const computerToAdd = {
-      id: computerId,
-      name: newComputer.name || `PC-${computerId.padStart(3, '0')}`,
+      name:
+        newComputer.name ||
+        `PC-${(computers.length + 1).toString().padStart(3, '0')}`,
       location: newComputer.location || '',
       specifications: newComputer.specifications || '',
-      isAvailable: true,
+      availability: true,
     };
-
-    setComputers([...computers, computerToAdd]);
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/computers`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(computerToAdd),
+      }
+    );
+    if (!resp.ok) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add computer',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const data = await resp.json();
+    setComputers((prev) => [...prev, data]);
     setNewComputer({
       name: '',
       location: '',
       specifications: '',
-      isAvailable: true,
+      availability: true,
     });
     setIsDialogOpen(false);
 
@@ -112,13 +157,35 @@ const Computers = () => {
     });
   };
 
-  const handleUpdateComputer = () => {
+  const handleUpdateComputer = async () => {
     if (!checkSuperAdminPermission()) return;
     if (!editingComputer) return;
 
     const updatedComputers = computers.map((computer) =>
-      computer.id === editingComputer.id ? editingComputer : computer
+      computer._id === editingComputer._id ? editingComputer : computer
     );
+
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/computers/${
+        editingComputer._id
+      }`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(editingComputer),
+      }
+    );
+    if (!resp.ok) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update computer',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setComputers(updatedComputers);
     setEditingComputer(null);
@@ -130,31 +197,76 @@ const Computers = () => {
     });
   };
 
-  const handleToggleAvailability = (id: string) => {
+  const handleToggleAvailability = async (id: string) => {
     if (!checkSuperAdminPermission()) return;
 
     const updatedComputers = computers.map((computer) =>
-      computer.id === id
-        ? { ...computer, isAvailable: !computer.isAvailable }
+      computer._id === id
+        ? { ...computer, isAvailable: !computer.availability }
         : computer
     );
 
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/computers/${id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          availability: !computers.find((c) => c._id === id)?.availability,
+        }),
+      }
+    );
+    if (!resp.ok) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update availability',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const data = await resp.json();
     setComputers(updatedComputers);
-
-    const computer = computers.find((c) => c.id === id);
-    const status = computer?.isAvailable ? 'unavailable' : 'available';
+    const computer = updatedComputers.find((c) => c._id === id);
+    // const status = computer?.availability ? 'available' : 'unavailable';
+    setEditingComputer(null);
 
     toast({
       title: 'Availability Updated',
-      description: `${computer?.name} is now ${status}.`,
+      description: `${computer?.name} is now ${
+        data.availability ? 'available' : 'unavailable'
+      }.`,
     });
   };
 
-  const handleDeleteComputer = (id: string) => {
+  const handleDeleteComputer = async (id: string) => {
     if (!checkSuperAdminPermission()) return;
 
-    const computerToDelete = computers.find((c) => c.id === id);
-    const updatedComputers = computers.filter((computer) => computer.id !== id);
+    const computerToDelete = computers.find((c) => c._id === id);
+    const updatedComputers = computers.filter(
+      (computer) => computer._id !== id
+    );
+
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/computers/${id}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      }
+    );
+    if (!resp.ok) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete computer',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setComputers(updatedComputers);
 
@@ -172,7 +284,7 @@ const Computers = () => {
       name: '',
       location: '',
       specifications: '',
-      isAvailable: true,
+      availability: true,
     });
     setIsDialogOpen(true);
   };
@@ -265,55 +377,58 @@ const Computers = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {computers.map((computer) => (
-                  <TableRow key={computer.id}>
-                    <TableCell className="font-medium">
-                      {computer.name}
-                    </TableCell>
-                    <TableCell>{computer.location}</TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {computer.specifications}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs ${
-                          computer.isAvailable
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {computer.isAvailable ? 'Available' : 'Unavailable'}
-                      </span>
-                    </TableCell>
-                    {isSuperAdmin && (
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleAvailability(computer.id)}
-                        >
-                          {computer.isAvailable
-                            ? 'Mark Unavailable'
-                            : 'Mark Available'}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(computer)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteComputer(computer.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                {computers.length > 0 &&
+                  computers.map((computer) => (
+                    <TableRow key={computer._id}>
+                      <TableCell className="font-medium">
+                        {computer.name}
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))}
+                      <TableCell>{computer.location}</TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {computer.specifications}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            computer.availability
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {computer.availability ? 'Available' : 'Unavailable'}
+                        </span>
+                      </TableCell>
+                      {isSuperAdmin && (
+                        <TableCell className="text-right space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleToggleAvailability(computer._id)
+                            }
+                          >
+                            {computer.availability
+                              ? 'Mark Unavailable'
+                              : 'Mark Available'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(computer)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteComputer(computer._id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           </CardContent>

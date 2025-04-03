@@ -1,4 +1,3 @@
-
 export type UserRole = 'super_admin' | 'admin';
 
 export interface User {
@@ -9,10 +8,10 @@ export interface User {
 }
 
 export interface ComputerSystem {
-  id: string;
+  _id: string;
   name: string;
   location: string;
-  isAvailable: boolean;
+  availability: boolean;
   specifications?: string;
 }
 
@@ -49,31 +48,31 @@ export const mockUsers: User[] = [
 
 export const mockComputers: ComputerSystem[] = [
   {
-    id: '1',
+    _id: '1',
     name: 'PC-001',
     location: 'Lab A - Seat 1',
-    isAvailable: true,
+    availability: true,
     specifications: 'Intel i7, 16GB RAM, 512GB SSD',
   },
   {
-    id: '2',
+    _id: '2',
     name: 'PC-002',
     location: 'Lab A - Seat 2',
-    isAvailable: true,
+    availability: true,
     specifications: 'Intel i7, 16GB RAM, 512GB SSD',
   },
   {
-    id: '3',
+    _id: '3',
     name: 'PC-003',
     location: 'Lab B - Seat 1',
-    isAvailable: false,
+    availability: false,
     specifications: 'Intel i5, 8GB RAM, 256GB SSD',
   },
   {
-    id: '4',
+    _id: '4',
     name: 'PC-004',
     location: 'Lab B - Seat 2',
-    isAvailable: true,
+    availability: true,
     specifications: 'Intel i5, 8GB RAM, 256GB SSD',
   },
 ];
