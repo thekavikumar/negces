@@ -1,10 +1,11 @@
 export type UserRole = 'super_admin' | 'admin';
 
 export interface User {
-  id: string;
+  _id?: string;
   email: string;
   name: string;
   role: UserRole;
+  password?: string;
 }
 
 export interface ComputerSystem {
@@ -33,13 +34,13 @@ export interface BookingSlot {
 // Mock data for initial development
 export const mockUsers: User[] = [
   {
-    id: '1',
+    _id: '1',
     email: 'super@codelab.edu',
     name: 'Super Admin',
     role: 'super_admin',
   },
   {
-    id: '2',
+    _id: '2',
     email: 'admin1@codelab.edu',
     name: 'Admin User',
     role: 'admin',

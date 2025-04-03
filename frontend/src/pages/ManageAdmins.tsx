@@ -43,10 +43,23 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { UserPlus, UserMinus, Mail } from 'lucide-react';
 import { useAuthStore } from '@/hooks/useAuthStore';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
   email: z.string().email({ message: 'Please enter a valid email address' }),
+  password: z
+    .string()
+    .min(6, { message: 'Password must be at least 6 characters' }),
+  role: z.enum(['admin', 'super_admin'], {
+    errorMap: () => ({ message: 'Role is required' }),
+  }),
 });
 
 const ManageAdmins = () => {
@@ -62,6 +75,8 @@ const ManageAdmins = () => {
     defaultValues: {
       name: '',
       email: '',
+      password: '',
+      role: 'admin',
     },
   });
 
@@ -77,10 +92,10 @@ const ManageAdmins = () => {
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     const newAdmin: User = {
-      id: `admin-${Date.now()}`,
       name: values.name,
       email: values.email,
-      role: 'admin',
+      role: values.role,
+      password: values.password,
     };
 
     setAdmins([...admins, newAdmin]);
@@ -94,8 +109,8 @@ const ManageAdmins = () => {
   };
 
   const handleDeleteAdmin = (id: string) => {
-    const adminToDelete = admins.find((admin) => admin.id === id);
-    setAdmins(admins.filter((admin) => admin.id !== id));
+    const adminToDelete = admins.find((admin) => admin._id === id);
+    setAdmins(admins.filter((admin) => admin._id !== id));
 
     toast({
       title: 'Admin Removed',
@@ -147,7 +162,7 @@ const ManageAdmins = () => {
               </TableHeader>
               <TableBody>
                 {admins.map((admin) => (
-                  <TableRow key={admin.id}>
+                  <TableRow key={admin._id}>
                     <TableCell className="font-medium">{admin.name}</TableCell>
                     <TableCell>{admin.email}</TableCell>
                     <TableCell>Admin</TableCell>
@@ -163,7 +178,7 @@ const ManageAdmins = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteAdmin(admin.id)}
+                        onClick={() => handleDeleteAdmin(admin._id)}
                       >
                         <UserMinus className="h-4 w-4 text-destructive" />
                       </Button>
@@ -213,6 +228,47 @@ const ManageAdmins = () => {
                         type="email"
                         {...field}
                       />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="********"
+                        type="password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="super_user">Super User</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
