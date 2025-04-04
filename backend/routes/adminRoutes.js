@@ -19,11 +19,30 @@ router.post(
   superAdminMiddleware,
   async (req, res) => {
     const { name, email, role } = req.body;
+
+    // Store only the email *body* in settings
+    const emailTemplateBody = `
+      <h2>Booking Confirmed</h2>
+      <p>Dear <strong>{studentName}</strong>,</p>
+      <p>
+        Your booking has been confirmed for <strong>{date}</strong> from
+        <strong>{startTime}</strong> to <strong>{endTime}</strong> on
+        <strong>{computerName}</strong>.
+      </p>
+      <p>Thank you,<br />CodeLab Bookings</p>
+    `;
     try {
+      const settings = {
+        passwordUpdate: false,
+        enableEmailNotification: true,
+        ccAdminOnEmails: true,
+        emailTemplate: emailTemplateBody,
+      };
       const admin = await Admin.create({
         name,
         email,
         role,
+        settings,
       });
       res.json(admin);
     } catch (err) {

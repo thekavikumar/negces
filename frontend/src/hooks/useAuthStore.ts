@@ -5,6 +5,12 @@ interface User {
   name: string;
   email: string;
   role: 'admin' | 'super_admin';
+  settings?: {
+    passwordUpdate: boolean;
+    enableEmailNotification: boolean;
+    ccAdminOnEmails: boolean;
+    emailTemplate: string;
+  };
 }
 
 interface AuthState {

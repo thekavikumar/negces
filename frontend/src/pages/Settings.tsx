@@ -42,16 +42,15 @@ const emailFormSchema = z.object({
 });
 
 const Settings = () => {
+  const { user } = useAuthStore();
   const [isUpdating, setIsUpdating] = useState(false);
   const [emailSettings, setEmailSettings] = useState({
-    enableEmailNotifications: true,
-    ccAdmin: true,
-    emailTemplate:
-      'Dear {studentName},\n\nYour booking has been confirmed for {date} from {startTime} to {endTime} on {computerName}.\n\nThank you,\nCodeLab Bookings',
+    enableEmailNotifications: user.settings.enableEmailNotification || false,
+    ccAdmin: user.settings.ccAdminOnEmails || false,
+    emailTemplate: user.settings.emailTemplate || '',
   });
 
   const { toast } = useToast();
-  const { user } = useAuthStore();
 
   const profileForm = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),

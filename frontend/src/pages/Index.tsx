@@ -51,7 +51,7 @@ const Index = () => {
           <CalendarDays className="h-12 w-12 text-primary" />
         </div>
         <h1 className="text-4xl md:text-5xl font-bold max-w-3xl mb-6">
-          Computer Science Lab Booking System
+          Negces Lab Booking System
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mb-8">
           Efficiently manage lab resources, schedule student sessions, and
@@ -103,9 +103,16 @@ const Index = () => {
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-sm text-muted-foreground">
         <p>
-          © {new Date().getFullYear()} CodeLab Bookings. All rights reserved.
+          © {new Date().getFullYear()} Negces Lab Bookings. Developed by{' '}
+          <a
+            href="https://kavikumar.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Kavikumar M
+          </a>
         </p>
-        <p className="mt-2">Demo credentials: super@codelab.edu / password</p>
       </footer>
     </div>
   );
