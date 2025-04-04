@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,14 +34,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Label } from '@/components/ui/label';
-import { User, mockUsers } from '@/types';
+
+import { User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { UserPlus, UserMinus, Mail } from 'lucide-react';
+import { UserPlus, UserMinus, Mail, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/hooks/useAuthStore';
 import {
   Select,
@@ -54,28 +54,42 @@ import {
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
   email: z.string().email({ message: 'Please enter a valid email address' }),
-  password: z
-    .string()
-    .min(6, { message: 'Password must be at least 6 characters' }),
   role: z.enum(['admin', 'super_admin'], {
     errorMap: () => ({ message: 'Role is required' }),
   }),
 });
 
 const ManageAdmins = () => {
-  const [admins, setAdmins] = useState<User[]>(
-    mockUsers.filter((user) => user.role === 'admin')
-  );
+  const [admins, setAdmins] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { token } = useAuthStore();
   const navigate = useNavigate();
+  const [inviteLoadingId, setInviteLoadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      const response = await fetch(
+        `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/admins`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json();
+      setAdmins(data);
+    };
+
+    fetchAdmins();
+  }, [token]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
       email: '',
-      password: '',
       role: 'admin',
     },
   });
@@ -90,15 +104,39 @@ const ManageAdmins = () => {
     return null;
   }
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const newAdmin: User = {
       name: values.name,
       email: values.email,
       role: values.role,
-      password: values.password,
     };
 
-    setAdmins([...admins, newAdmin]);
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/admins/create`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newAdmin),
+      }
+    );
+
+    if (!resp.ok) {
+      const error = await resp.json();
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const data = await resp.json();
+    const newAdminWithId = { ...newAdmin, _id: data._id };
+
+    setAdmins((prev) => [...prev, newAdminWithId]);
     setIsDialogOpen(false);
     form.reset();
 
@@ -108,9 +146,40 @@ const ManageAdmins = () => {
     });
   };
 
-  const handleDeleteAdmin = (id: string) => {
+  const handleDeleteAdmin = async (id: string) => {
     const adminToDelete = admins.find((admin) => admin._id === id);
-    setAdmins(admins.filter((admin) => admin._id !== id));
+
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/admins/${id}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!resp.ok) {
+      const error = await resp.json();
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const data = await resp.json();
+    if (data.error) {
+      toast({
+        title: 'Error',
+        description: data.error,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAdmins((prev) => prev.filter((admin) => admin._id !== id));
 
     toast({
       title: 'Admin Removed',
@@ -119,7 +188,40 @@ const ManageAdmins = () => {
     });
   };
 
-  const handleSendInvite = (email: string) => {
+  const handleSendInvite = async (id: string, email: string) => {
+    setInviteLoadingId(id);
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/admins/invite`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id, email }),
+      }
+    );
+    setInviteLoadingId(null);
+    if (!resp.ok) {
+      const error = await resp.json();
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const data = await resp.json();
+    if (data.error) {
+      toast({
+        title: 'Error',
+        description: data.error,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     toast({
       title: 'Invite Sent',
       description: `An invitation email has been sent to ${email}.`,
@@ -165,15 +267,23 @@ const ManageAdmins = () => {
                   <TableRow key={admin._id}>
                     <TableCell className="font-medium">{admin.name}</TableCell>
                     <TableCell>{admin.email}</TableCell>
-                    <TableCell>Admin</TableCell>
+                    <TableCell>{admin.role}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleSendInvite(admin.email)}
+                        className="min-w-[120px]"
+                        onClick={() => handleSendInvite(admin._id, admin.email)}
+                        disabled={inviteLoadingId === admin._id}
                       >
-                        <Mail className="h-4 w-4 mr-2" />
-                        Send Invite
+                        {inviteLoadingId === admin._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-black" />
+                        ) : (
+                          <>
+                            <Mail className="h-4 w-4 mr-2" />
+                            Send Invite
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant="ghost"
@@ -233,23 +343,7 @@ const ManageAdmins = () => {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="********"
-                        type="password"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
               <FormField
                 control={form.control}
                 name="role"
