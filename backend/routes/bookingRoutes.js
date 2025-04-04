@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
+const Student = require('../models/Student');
 const { sendEmail } = require('../config/email');
 const { authMiddleware } = require('../middleware/authMiddleware');
 
@@ -9,32 +10,52 @@ const router = express.Router();
 // Fetch All Bookings
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    console.log('Fetching all bookings...');
-    const bookings = await Booking.find().populate('student computer');
-    console.log('Bookings fetched:', bookings);
-    if (!bookings)
+    const bookings = await Booking.find()
+      .populate('student')
+      .populate('computer')
+      .populate('admin');
+
+    if (!bookings.length) {
       return res.status(404).json({ message: 'No bookings found' });
-    res.json(bookings);
+    }
+
+    res.status(200).json(bookings);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching bookings', error });
+    console.error('Error fetching bookings:', error);
+    res
+      .status(500)
+      .json({ message: 'Error fetching bookings', error: error.message });
   }
 });
 
-// Book a Computer (No Overlaps, with Transactions)
+// Book a Computer
 router.post('/', authMiddleware, async (req, res) => {
-  const { student, computer, startTime, endTime } = req.body;
+  const { student, computer, startTime, endTime, admin } = req.body;
+
+  if (!student || !computer || !startTime || !endTime || !admin) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
 
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    // Check for overlapping bookings within the transaction
+    const startDate = new Date(startTime);
+    const endDate = new Date(endTime);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new Error('Invalid date format');
+    }
+
     const overlap = await Booking.findOne(
       {
         computer,
+        status: 'confirmed',
         $or: [
-          { startTime: { $lt: endTime, $gte: startTime } },
-          { endTime: { $gt: startTime, $lte: endTime } },
+          {
+            startTime: { $lte: endDate },
+            endTime: { $gte: startDate },
+          },
         ],
       },
       null,
@@ -44,17 +65,25 @@ router.post('/', authMiddleware, async (req, res) => {
     if (overlap) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ message: 'Time slot unavailable' });
+      return res.status(409).json({ message: 'Time slot unavailable' });
     }
 
-    // Create the booking within the transaction
+    const studentExists = await Student.findById(student);
+    if (!studentExists) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
     const booking = await Booking.create(
       [
         {
           student,
           computer,
-          startTime,
-          endTime,
+          admin,
+          startTime: startDate,
+          endTime: endDate,
+          status: 'confirmed',
         },
       ],
       { session }
@@ -63,19 +92,27 @@ router.post('/', authMiddleware, async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // TODO: Uncomment and implement email sending logic
-    // Send Email Notification
-    // sendEmail(
-    //   'student@example.com',
-    //   'Booking Confirmation',
-    //   `Your booking is confirmed!`
-    // );
+    const populatedBooking = await Booking.findById(booking[0]._id)
+      .populate('student')
+      .populate('computer')
+      .populate('admin');
 
-    res.json(booking);
+    // Optional: Add email notification
+    // await Promise.all([
+    //   sendEmail(studentExists.email, 'Booking Confirmed', 'Your booking details...'),
+    //   sendEmail(req.user.email, 'Booking Created', 'You created a booking...'),
+    //   sendEmail('super@codelab.edu', 'New Booking', 'A new booking was created...')
+    // ]);
+
+    res.status(201).json(populatedBooking);
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    res.status(500).json({ message: 'Error processing booking', error });
+    console.error('Booking error:', error);
+    res.status(500).json({
+      message: 'Error processing booking',
+      error: error.message,
+    });
   }
 });
 

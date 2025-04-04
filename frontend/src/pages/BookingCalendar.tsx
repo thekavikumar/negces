@@ -24,10 +24,36 @@ import { useAuthStore } from '@/hooks/useAuthStore';
 
 const BookingCalendar = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [bookingsForDate, setBookingsForDate] = useState<BookingSlot[]>([]);
+  const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const [dummy, setDummy] = useState(false);
+
+  useEffect(() => {
+    const fetchBookings = async () => {
+      const resp = await fetch(
+        `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/bookings`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (!resp.ok) {
+        console.error('Failed to fetch bookings');
+        return;
+      }
+      const data = await resp.json();
+      console.log('Fetched bookings:', data);
+      setBookings(data || []);
+    };
+    fetchBookings();
+  }, [dummy]);
 
   useEffect(() => {
     if (!user) {
@@ -39,7 +65,7 @@ const BookingCalendar = () => {
     if (selectedDate) {
       // In real app, fetch bookings from API
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-      const filtered = mockBookings.filter(
+      const filtered = bookings.filter(
         (booking) => booking.date === formattedDate
       );
       setBookingsForDate(filtered);
@@ -50,7 +76,7 @@ const BookingCalendar = () => {
 
   const isDateBooked = (date: Date) => {
     const formattedDate = format(date, 'yyyy-MM-dd');
-    return mockBookings.some((booking) => booking.date === formattedDate);
+    return bookings.some((booking) => booking.date === formattedDate);
   };
 
   const handleNewBooking = () => {
@@ -161,6 +187,9 @@ const BookingCalendar = () => {
               <DialogTitle>Create New Booking</DialogTitle>
             </DialogHeader>
             <BookingForm
+              token={token}
+              dummy={dummy}
+              setDummy={setDummy}
               selectedDate={selectedDate}
               onBookingComplete={handleDialogClose}
               currentUser={user}
