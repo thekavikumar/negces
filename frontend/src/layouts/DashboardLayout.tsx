@@ -18,7 +18,7 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, setToken, setUser } = useAuthStore();
 
   useEffect(() => {
     if (!user) {
@@ -58,7 +58,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Navbar user={user} />
+      <Navbar user={user} setToken={setToken} setUser={setUser} />
       <div className="flex flex-1">
         {/* Sidebar */}
         <aside className="w-64 border-r hidden md:block">

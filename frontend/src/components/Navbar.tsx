@@ -13,13 +13,16 @@ import { CalendarDays, LogOut, User as UserIcon } from 'lucide-react';
 
 interface NavbarProps {
   user: User | null;
+  setUser: (user: User | null) => void;
+  setToken: (token: string | null) => void;
 }
 
-export const Navbar = ({ user }: NavbarProps) => {
+export const Navbar = ({ user, setUser, setToken }: NavbarProps) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem('currentUser');
+    setUser(null);
+    setToken(null);
     navigate('/login');
   };
 

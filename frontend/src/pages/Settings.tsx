@@ -27,6 +27,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '@/hooks/useAuthStore';
+import { useNavigate } from 'react-router-dom';
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
@@ -41,16 +42,26 @@ const emailFormSchema = z.object({
     .min(10, { message: 'Template must be at least 10 characters' }),
 });
 
-const Settings = () => {
-  const { user } = useAuthStore();
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [emailSettings, setEmailSettings] = useState({
-    enableEmailNotifications: user.settings.enableEmailNotification || false,
-    ccAdmin: user.settings.ccAdminOnEmails || false,
-    emailTemplate: user.settings.emailTemplate || '',
+const passwordFormSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(6, { message: 'Current password is required' }),
+    newPassword: z
+      .string()
+      .min(6, { message: 'New password must be at least 6 characters' }),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
   });
 
+const Settings = () => {
+  const { user, token, setToken, setUser } = useAuthStore();
   const { toast } = useToast();
+  const [isUpdating, setIsUpdating] = useState(false);
+  const navigate = useNavigate();
 
   const profileForm = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),
@@ -62,46 +73,128 @@ const Settings = () => {
 
   const emailForm = useForm<z.infer<typeof emailFormSchema>>({
     resolver: zodResolver(emailFormSchema),
-    defaultValues: emailSettings,
+    defaultValues: {
+      enableEmailNotifications: user.settings.enableEmailNotification || false,
+      ccAdmin: user.settings.ccAdminOnEmails || false,
+      emailTemplate: user.settings.emailTemplate || '',
+    },
   });
 
-  const onProfileSubmit = (data: z.infer<typeof profileFormSchema>) => {
+  const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  });
+
+  const onProfileSubmit = async (data: z.infer<typeof profileFormSchema>) => {
     setIsUpdating(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      // Update local storage
-      if (user) {
-        const updatedUser = { ...user, name: data.name, email: data.email };
-        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/admins/updateName`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+        }),
       }
+    );
 
+    if (!resp.ok) {
       setIsUpdating(false);
+      const error = await resp.json();
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    const result = await resp.json();
+    if (result.success) {
       toast({
         title: 'Profile Updated',
         description: 'Your profile has been updated successfully.',
       });
-    }, 1000);
+    } else {
+      toast({
+        title: 'Error',
+        description: result.message,
+        variant: 'destructive',
+      });
+    }
+    setIsUpdating(false);
   };
 
-  const onEmailSettingsSubmit = (data: z.infer<typeof emailFormSchema>) => {
+  // const onEmailSettingsSubmit = (data: z.infer<typeof emailFormSchema>) => {
+  //   setIsUpdating(true);
+  //   setTimeout(() => {
+  //     toast({
+  //       title: 'Email Settings Updated',
+  //       description:
+  //         'Email notification settings have been updated successfully.',
+  //     });
+  //     setIsUpdating(false);
+  //   }, 1000);
+  // };
+
+  const onPasswordSubmit = async (data: z.infer<typeof passwordFormSchema>) => {
     setIsUpdating(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      // Fix: Ensure all required properties are present in the data before setting state
-      setEmailSettings({
-        enableEmailNotifications: data.enableEmailNotifications,
-        ccAdmin: data.ccAdmin,
-        emailTemplate: data.emailTemplate,
-      });
+    const resp = await fetch(
+      `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/admins/updatePassword`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          oldPassword: data.currentPassword,
+          newPassword: data.newPassword,
+        }),
+      }
+    );
+
+    if (!resp.ok) {
       setIsUpdating(false);
+      const error = await resp.json();
       toast({
-        title: 'Email Settings Updated',
-        description:
-          'Email notification settings have been updated successfully.',
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
       });
-    }, 1000);
+      return;
+    }
+
+    const result = await resp.json();
+    if (result.success) {
+      toast({
+        title: 'Password Updated',
+        description: 'Your password has been updated successfully.',
+      });
+    } else {
+      toast({
+        title: 'Error',
+        description: result.message,
+        variant: 'destructive',
+      });
+    }
+
+    setUser(null);
+    setToken(null);
+
+    navigate('/login', {
+      replace: true,
+    });
+    setIsUpdating(false);
+    passwordForm.reset(); // Clear form after success
   };
 
   return (
@@ -117,11 +210,12 @@ const Settings = () => {
         <Tabs defaultValue="profile" className="space-y-4">
           <TabsList>
             <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="email">Email Notifications</TabsTrigger>
+            {/* <TabsTrigger value="email">Email Notifications</TabsTrigger> */}
             <TabsTrigger value="security">Security</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile" className="space-y-4">
+          {/* PROFILE FORM */}
+          <TabsContent value="profile">
             <Card>
               <CardHeader>
                 <CardTitle>Profile Information</CardTitle>
@@ -179,7 +273,8 @@ const Settings = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="email" className="space-y-4">
+          {/* EMAIL FORM */}
+          {/* <TabsContent value="email">
             <Card>
               <CardHeader>
                 <CardTitle>Email Notifications</CardTitle>
@@ -212,7 +307,6 @@ const Settings = () => {
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={emailForm.control}
                       name="ccAdmin"
@@ -231,14 +325,13 @@ const Settings = () => {
                               checked={field.value}
                               onCheckedChange={field.onChange}
                               disabled={
-                                !emailForm.getValues('enableEmailNotifications')
+                                !emailForm.watch('enableEmailNotifications')
                               }
                             />
                           </FormControl>
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={emailForm.control}
                       name="emailTemplate"
@@ -247,11 +340,11 @@ const Settings = () => {
                           <FormLabel>Email Template</FormLabel>
                           <FormControl>
                             <textarea
-                              className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                               placeholder="Email template"
                               {...field}
                               disabled={
-                                !emailForm.getValues('enableEmailNotifications')
+                                !emailForm.watch('enableEmailNotifications')
                               }
                             />
                           </FormControl>
@@ -270,7 +363,7 @@ const Settings = () => {
                       type="submit"
                       disabled={
                         isUpdating ||
-                        !emailForm.getValues('enableEmailNotifications')
+                        !emailForm.watch('enableEmailNotifications')
                       }
                     >
                       {isUpdating ? 'Saving...' : 'Save Changes'}
@@ -279,31 +372,76 @@ const Settings = () => {
                 </form>
               </Form>
             </Card>
-          </TabsContent>
+          </TabsContent> */}
 
-          <TabsContent value="security" className="space-y-4">
+          <TabsContent value="security">
             <Card>
               <CardHeader>
                 <CardTitle>Password</CardTitle>
                 <CardDescription>Change your password here.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="current-password">Current Password</Label>
-                  <Input id="current-password" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <Input id="new-password" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input id="confirm-password" type="password" />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button>Change Password</Button>
-              </CardFooter>
+              <Form {...passwordForm}>
+                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={passwordForm.control}
+                      name="currentPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Enter current password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Enter new password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Confirm new password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                  <CardFooter>
+                    <Button type="submit" disabled={isUpdating}>
+                      {isUpdating ? 'Saving...' : 'Change Password'}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Form>
             </Card>
           </TabsContent>
         </Tabs>

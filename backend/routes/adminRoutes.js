@@ -29,7 +29,7 @@ router.post(
         <strong>{startTime}</strong> to <strong>{endTime}</strong> on
         <strong>{computerName}</strong>.
       </p>
-      <p>Thank you,<br />CodeLab Bookings</p>
+      <p>Thank you,<br />Negces Lab Bookings</p>
     `;
     try {
       const settings = {
@@ -117,15 +117,30 @@ router.get('/me', authMiddleware, async (req, res) => {
 });
 
 const generatePassword = () => {
-  const length = 8;
-  const charset =
-    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+[]{}|;:,.<>?';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * charset.length);
-    password += charset[randomIndex];
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const digits = '0123456789';
+  const symbols = '!@#$%^&*()_+[]{}|;:,.<>?';
+
+  const allChars = lower + upper + digits + symbols;
+
+  // Ensure at least one character from each category
+  let password = [
+    lower[Math.floor(Math.random() * lower.length)],
+    upper[Math.floor(Math.random() * upper.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+    symbols[Math.floor(Math.random() * symbols.length)],
+  ];
+
+  // Fill the remaining characters
+  for (let i = password.length; i < 8; i++) {
+    password.push(allChars[Math.floor(Math.random() * allChars.length)]);
   }
-  return password;
+
+  // Shuffle the password array to mix the guaranteed characters
+  password = password.sort(() => Math.random() - 0.5);
+
+  return password.join('');
 };
 
 // Send invitation to Admin(Super Admin Only)
@@ -176,5 +191,36 @@ router.post(
     res.json({ message: 'Invitation sent successfully' });
   }
 );
+
+// update password
+router.put('/updatePassword', authMiddleware, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const admin = await Admin.findOne({ email: req.admin.email });
+
+  if (!admin || !(await bcrypt.compare(oldPassword, admin.password))) {
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  admin.password = hashedPassword;
+  await admin.save();
+
+  res.json({ success: true, message: 'Password updated successfully' });
+});
+
+// update name
+router.put('/updateName', authMiddleware, async (req, res) => {
+  const { name } = req.body;
+  const admin = await Admin.findOne({ email: req.admin.email });
+
+  if (!admin) {
+    return res.status(404).json({ message: 'Admin not found' });
+  }
+
+  admin.name = name;
+  await admin.save();
+
+  res.json({ success: true, message: 'Name updated successfully' });
+});
 
 module.exports = router;
