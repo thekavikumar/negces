@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,11 @@ interface Student {
   department: string;
 }
 
+interface Booking {
+  startTime: string;
+  endTime: string;
+}
+
 export const BookingForm = ({
   selectedDate,
   onBookingComplete,
@@ -55,11 +60,10 @@ export const BookingForm = ({
   const [availableComputers, setAvailableComputers] = useState<
     ComputerSystem[]
   >([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // Fetch computers
+  // Fetch available computers
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
     const fetchComputers = async () => {
       try {
         const resp = await fetch(
@@ -75,18 +79,17 @@ export const BookingForm = ({
 
         if (!resp.ok) throw new Error('Failed to fetch computers');
         const data = await resp.json();
-        const filtered =
-          data.filter((computer: ComputerSystem) => computer.availability) ||
-          [];
+        const filtered = data.filter(
+          (computer: ComputerSystem) => computer.availability
+        );
         setAvailableComputers(filtered);
       } catch (error) {
         console.error(error);
-        toast.error('Error loading computers, please refresh the page.');
+        toast.error('Error loading computers');
       }
     };
 
-    timeoutId = setTimeout(() => fetchComputers(), 300);
-    return () => clearTimeout(timeoutId);
+    fetchComputers();
   }, [token]);
 
   // Fetch students for search
@@ -105,7 +108,6 @@ export const BookingForm = ({
             },
           }
         );
-
         if (!resp.ok) throw new Error('Failed to fetch students');
         const data = await resp.json();
         setStudents(data);
@@ -120,8 +122,40 @@ export const BookingForm = ({
     }
   }, [studentSearch, mode, token]);
 
+  // Fetch bookings for selected computer and date
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (!selectedComputer || !selectedDate) return;
+
+      try {
+        const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+        const resp = await fetch(
+          `${
+            import.meta.env.VITE_PUBLIC_BACKEND_URL
+          }/api/bookings?computer=${selectedComputer}&date=${formattedDate}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!resp.ok) throw new Error('Failed to fetch bookings');
+        const data = await resp.json();
+        setBookings(data);
+      } catch (error) {
+        console.error(error);
+        toast.error('Error fetching bookings');
+      }
+    };
+
+    fetchBookings();
+  }, [selectedComputer, selectedDate, token]);
+
   const generateTimeSlots = () => {
-    const slots = [];
+    const slots: string[] = [];
     for (let hour = 8; hour < 20; hour++) {
       slots.push(`${hour.toString().padStart(2, '0')}:00`);
       slots.push(`${hour.toString().padStart(2, '0')}:30`);
@@ -129,7 +163,35 @@ export const BookingForm = ({
     return slots;
   };
 
-  const timeSlots = generateTimeSlots();
+  const getAvailableTimeSlots = () => {
+    const slots = generateTimeSlots();
+
+    if (!bookings.length || !selectedDate) return slots;
+
+    const slotToDate = (time: string) =>
+      new Date(
+        Date.UTC(
+          selectedDate.getFullYear(),
+          selectedDate.getMonth(),
+          selectedDate.getDate(),
+          Number(time.split(':')[0]),
+          Number(time.split(':')[1])
+        )
+      );
+
+    return slots.filter((slot) => {
+      const slotStart = slotToDate(slot);
+      const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000); // +30min
+
+      const isConflict = bookings.some((b) => {
+        const bStart = new Date(b.startTime);
+        const bEnd = new Date(b.endTime);
+        return slotStart < bEnd && slotEnd > bStart;
+      });
+
+      return !isConflict;
+    });
+  };
 
   const handleStudentSelect = (studentId: string) => {
     const student = students.find((s) => s._id === studentId);
@@ -146,15 +208,9 @@ export const BookingForm = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedDate) {
-      toast.error('Please select a date');
-      return;
-    }
-
-    if (startTime >= endTime) {
-      toast.error('End time must be after start time');
-      return;
-    }
+    if (!selectedDate) return toast.error('Please select a date');
+    if (startTime >= endTime)
+      return toast.error('End time must be after start time');
 
     setIsSubmitting(true);
     try {
@@ -162,23 +218,12 @@ export const BookingForm = ({
       const computer = availableComputers.find(
         (c) => c._id === selectedComputer
       );
-
-      if (!computer) {
-        toast.error('Invalid computer selected');
-        return;
-      }
+      if (!computer) return toast.error('Invalid computer');
 
       let studentId = selectedStudentId;
 
-      // Create a new student if in "create" mode
       if (mode === 'create') {
-        const sanitizedName = studentName.trim();
-        const sanitizedEmail = studentEmail.trim().toLowerCase();
-        const sanitizedRollNumber = studentRollNumber.trim();
-        const sanitizedPhone = studentPhone.trim();
-        const sanitizedDepartment = studentDepartment.trim();
-
-        const studentResponse = await fetch(
+        const newStudentResp = await fetch(
           `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/students`,
           {
             method: 'POST',
@@ -187,45 +232,51 @@ export const BookingForm = ({
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              name: sanitizedName,
-              email: sanitizedEmail,
-              rollNumber: sanitizedRollNumber,
-              phone: sanitizedPhone,
-              department: sanitizedDepartment,
+              name: studentName.trim(),
+              email: studentEmail.trim().toLowerCase(),
+              rollNumber: studentRollNumber.trim(),
+              phone: studentPhone.trim(),
+              department: studentDepartment.trim(),
             }),
           }
         );
 
-        if (!studentResponse.ok) {
-          throw new Error('Failed to create student');
-        }
-
-        const newStudent = await studentResponse.json();
-        // console.log('New student created:', newStudent);
+        if (!newStudentResp.ok) throw new Error('Failed to create student');
+        const newStudent = await newStudentResp.json();
         studentId = newStudent.student._id;
       }
 
-      // console.log('Selected student ID:', studentId);
-      if (!studentId) {
-        toast.error('Please select or create a student');
-        return;
-      }
+      if (!studentId) return toast.error('Please select or create a student');
 
-      // Simulate delay
+      const startTimeUTC = new Date(
+        Date.UTC(
+          selectedDate.getFullYear(),
+          selectedDate.getMonth(),
+          selectedDate.getDate(),
+          Number(startTime.split(':')[0]),
+          Number(startTime.split(':')[1])
+        )
+      ).toISOString();
 
-      // Proceed with booking creation
-      const startISO = `${formattedDate}T${startTime}:00.000Z`;
-      const endISO = `${formattedDate}T${endTime}:00.000Z`;
+      const endTimeUTC = new Date(
+        Date.UTC(
+          selectedDate.getFullYear(),
+          selectedDate.getMonth(),
+          selectedDate.getDate(),
+          Number(endTime.split(':')[0]),
+          Number(endTime.split(':')[1])
+        )
+      ).toISOString();
 
       const payload = {
         student: studentId,
         computer: computer._id,
-        startTime: startISO,
-        endTime: endISO,
+        startTime: startTimeUTC,
+        endTime: endTimeUTC,
         admin: currentUser._id,
       };
 
-      const bookingResponse = await fetch(
+      const bookingResp = await fetch(
         `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/bookings`,
         {
           method: 'POST',
@@ -237,23 +288,22 @@ export const BookingForm = ({
         }
       );
 
-      if (!bookingResponse.ok) {
-        const errorData = await bookingResponse.json();
+      if (!bookingResp.ok) {
+        const errorData = await bookingResp.json();
         throw new Error(errorData.message || 'Failed to create booking');
       }
 
-      toast.success('Booking created successfully');
+      toast.success('Booking created');
       toast('Email notifications sent', {
-        description: `Notifications sent to ${studentEmail}, ${currentUser.email}, and super@codelab.edu`,
+        description: `To ${studentEmail}, ${currentUser.email}, and super@codelab.edu`,
       });
+
       setDummy(!dummy);
       resetForm();
       onBookingComplete();
     } catch (error: any) {
-      console.error('Booking error:', error);
-      toast.error(
-        error.message || 'An error occurred while creating the booking'
-      );
+      console.error(error);
+      toast.error(error.message || 'An error occurred');
     } finally {
       setIsSubmitting(false);
     }
@@ -271,6 +321,7 @@ export const BookingForm = ({
     setStartTime('');
     setEndTime('');
     setSelectedComputer('');
+    setBookings([]);
   };
 
   return (
@@ -290,14 +341,14 @@ export const BookingForm = ({
 
         <div
           className={`grid ${
-            mode === 'select' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
+            mode === 'select' ? 'md:grid-cols-2' : 'grid-cols-1'
           } gap-4`}
         >
           <div className={mode === 'create' ? 'md:col-span-2' : ''}>
             <Label>Student Mode</Label>
             <Select
               value={mode}
-              onValueChange={(value: 'create' | 'select') => setMode(value)}
+              onValueChange={(v: 'create' | 'select') => setMode(v)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select mode" />
@@ -317,7 +368,7 @@ export const BookingForm = ({
                 onValueChange={handleStudentSelect}
               >
                 <SelectTrigger id="studentSearch">
-                  <SelectValue placeholder="Search by name or roll number" />
+                  <SelectValue placeholder="Search by name or roll" />
                 </SelectTrigger>
                 <SelectContent>
                   <Input
@@ -326,9 +377,9 @@ export const BookingForm = ({
                     placeholder="Type to search..."
                     className="mb-2"
                   />
-                  {students.map((student) => (
-                    <SelectItem key={student._id} value={student._id}>
-                      {student.name} ({student.rollNumber})
+                  {students.map((s) => (
+                    <SelectItem key={s._id} value={s._id}>
+                      {s.name} ({s.rollNumber})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -337,70 +388,50 @@ export const BookingForm = ({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 gap-4">
+          <InputField
+            id="studentName"
+            label="Student Name"
+            value={studentName}
+            setter={setStudentName}
+            disabled={mode === 'select'}
+            required={mode === 'create'}
+          />
+          <InputField
+            id="studentEmail"
+            type="email"
+            label="Student Email"
+            value={studentEmail}
+            setter={setStudentEmail}
+            disabled={mode === 'select'}
+            required={mode === 'create'}
+          />
+          <InputField
+            id="studentRollNumber"
+            label="Roll Number"
+            value={studentRollNumber}
+            setter={setStudentRollNumber}
+            disabled={mode === 'select'}
+            required={mode === 'create'}
+          />
+          <InputField
+            id="studentPhone"
+            label="Phone Number"
+            value={studentPhone}
+            setter={setStudentPhone}
+            disabled={mode === 'select'}
+            required={mode === 'create'}
+          />
+          <InputField
+            id="studentDepartment"
+            label="Department"
+            value={studentDepartment}
+            setter={setStudentDepartment}
+            disabled={mode === 'select'}
+            required={mode === 'create'}
+          />
           <div>
-            <Label htmlFor="studentName">Student Name</Label>
-            <Input
-              id="studentName"
-              value={studentName}
-              onChange={(e) => setStudentName(e.target.value)}
-              placeholder="John Doe"
-              required={mode === 'create'}
-              disabled={mode === 'select'}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="studentEmail">Student Email</Label>
-            <Input
-              id="studentEmail"
-              type="email"
-              value={studentEmail}
-              onChange={(e) => setStudentEmail(e.target.value)}
-              placeholder="student@example.com"
-              required={mode === 'create'}
-              disabled={mode === 'select'}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="studentRollNumber">Roll Number</Label>
-            <Input
-              id="studentRollNumber"
-              value={studentRollNumber}
-              onChange={(e) => setStudentRollNumber(e.target.value)}
-              placeholder="CS12345"
-              required={mode === 'create'}
-              disabled={mode === 'select'}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="studentPhone">Phone Number</Label>
-            <Input
-              id="studentPhone"
-              value={studentPhone}
-              onChange={(e) => setStudentPhone(e.target.value)}
-              placeholder="+1234567890"
-              required={mode === 'create'}
-              disabled={mode === 'select'}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="studentDepartment">Department</Label>
-            <Input
-              id="studentDepartment"
-              value={studentDepartment}
-              onChange={(e) => setStudentDepartment(e.target.value)}
-              placeholder="Computer Science"
-              required={mode === 'create'}
-              disabled={mode === 'select'}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="computer">Computer System</Label>
+            <Label htmlFor="computer">Computer</Label>
             <Select
               value={selectedComputer}
               onValueChange={setSelectedComputer}
@@ -410,9 +441,9 @@ export const BookingForm = ({
                 <SelectValue placeholder="Select computer" />
               </SelectTrigger>
               <SelectContent>
-                {availableComputers.map((computer) => (
-                  <SelectItem key={computer._id} value={computer._id}>
-                    {computer.name} ({computer.location})
+                {availableComputers.map((c) => (
+                  <SelectItem key={c._id} value={c._id}>
+                    {c.name} ({c.location})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -420,40 +451,22 @@ export const BookingForm = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="startTime">Start Time</Label>
-            <Select value={startTime} onValueChange={setStartTime} required>
-              <SelectTrigger id="startTime">
-                <SelectValue placeholder="Select start time" />
-              </SelectTrigger>
-              <SelectContent>
-                {timeSlots.map((time) => (
-                  <SelectItem key={`start-${time}`} value={time}>
-                    {time}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="endTime">End Time</Label>
-            <Select value={endTime} onValueChange={setEndTime} required>
-              <SelectTrigger id="endTime" disabled={!startTime}>
-                <SelectValue placeholder="Select end time" />
-              </SelectTrigger>
-              <SelectContent>
-                {timeSlots
-                  .filter((time) => time > startTime)
-                  .map((time) => (
-                    <SelectItem key={`end-${time}`} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <TimeSlotSelect
+            id="startTime"
+            label="Start Time"
+            value={startTime}
+            setValue={setStartTime}
+            slots={getAvailableTimeSlots()}
+          />
+          <TimeSlotSelect
+            id="endTime"
+            label="End Time"
+            value={endTime}
+            setValue={setEndTime}
+            slots={getAvailableTimeSlots().filter((t) => t > startTime)}
+            disabled={!startTime}
+          />
         </div>
       </div>
 
@@ -463,5 +476,53 @@ export const BookingForm = ({
     </form>
   );
 };
+
+// 🧩 Helper components
+const InputField = ({
+  id,
+  label,
+  value,
+  setter,
+  disabled = false,
+  required = false,
+  type = 'text',
+}: any) => (
+  <div>
+    <Label htmlFor={id}>{label}</Label>
+    <Input
+      id={id}
+      type={type}
+      value={value}
+      onChange={(e) => setter(e.target.value)}
+      disabled={disabled}
+      required={required}
+    />
+  </div>
+);
+
+const TimeSlotSelect = ({
+  id,
+  label,
+  value,
+  setValue,
+  slots,
+  disabled = false,
+}: any) => (
+  <div>
+    <Label htmlFor={id}>{label}</Label>
+    <Select value={value} onValueChange={setValue} required>
+      <SelectTrigger id={id} disabled={disabled}>
+        <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
+      </SelectTrigger>
+      <SelectContent>
+        {slots.map((time: string) => (
+          <SelectItem key={`${id}-${time}`} value={time}>
+            {time}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+);
 
 export default BookingForm;

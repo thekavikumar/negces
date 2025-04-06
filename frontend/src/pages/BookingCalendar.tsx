@@ -18,9 +18,14 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { BookingSlot, User, mockBookings } from '@/types';
+import { BookingSlot } from '@/types';
 import { format, isSameDay } from 'date-fns';
 import { useAuthStore } from '@/hooks/useAuthStore';
+
+const toIST = (date: Date) => {
+  const utcDate = new Date(date.toUTCString().slice(0, -3) + '+00:00');
+  return new Date(utcDate.getTime() + utcDate.getTimezoneOffset() * 60000);
+};
 
 const BookingCalendar = () => {
   const navigate = useNavigate();
@@ -29,29 +34,46 @@ const BookingCalendar = () => {
   const [bookingsForDate, setBookingsForDate] = useState<BookingSlot[]>([]);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
-
   const [dummy, setDummy] = useState(false);
 
   useEffect(() => {
     const fetchBookings = async () => {
-      const resp = await fetch(
-        `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/bookings`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+      try {
+        const resp = await fetch(
+          `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/bookings`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        if (!resp.ok) {
+          console.error('Failed to fetch bookings');
+          return;
         }
-      );
-      if (!resp.ok) {
-        console.error('Failed to fetch bookings');
-        return;
+
+        const data = await resp.json();
+        console.log('Fetched bookings:', data);
+
+        // Transform raw response
+        const transformed = data.map((booking: any) => ({
+          id: booking._id,
+          studentName: booking.student?.name || 'Unknown',
+          studentEmail: booking.student?.email || 'N/A',
+          computerName: booking.computer?.name || 'N/A',
+          adminName: booking.admin?.name || 'N/A',
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+        }));
+
+        setBookings(transformed);
+      } catch (error) {
+        console.error('Error fetching bookings:', error);
       }
-      const data = await resp.json();
-      console.log('Fetched bookings:', data);
-      setBookings(data || []);
     };
+
     fetchBookings();
   }, [dummy]);
 
@@ -59,24 +81,23 @@ const BookingCalendar = () => {
     if (!user) {
       navigate('/login');
     }
-  }, [navigate]);
+  }, [navigate, user]);
 
   useEffect(() => {
     if (selectedDate) {
-      // In real app, fetch bookings from API
-      const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-      const filtered = bookings.filter(
-        (booking) => booking.date === formattedDate
+      const filtered = bookings.filter((booking) =>
+        isSameDay(new Date(booking.startTime), selectedDate)
       );
       setBookingsForDate(filtered);
     } else {
       setBookingsForDate([]);
     }
-  }, [selectedDate, dialogOpen]);
+  }, [selectedDate, bookings, dialogOpen]);
 
   const isDateBooked = (date: Date) => {
-    const formattedDate = format(date, 'yyyy-MM-dd');
-    return bookings.some((booking) => booking.date === formattedDate);
+    return bookings.some((booking) =>
+      isSameDay(new Date(booking.startTime), date)
+    );
   };
 
   const handleNewBooking = () => {
@@ -153,7 +174,12 @@ const BookingCalendar = () => {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2">
                         <h3 className="font-medium">{booking.studentName}</h3>
                         <div className="text-sm text-muted-foreground">
-                          {booking.startTime} - {booking.endTime}
+                          {format(
+                            toIST(new Date(booking.startTime)),
+                            'hh:mm aa'
+                          )}{' '}
+                          -{' '}
+                          {format(toIST(new Date(booking.endTime)), 'hh:mm aa')}
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row text-sm gap-x-4 text-muted-foreground">
