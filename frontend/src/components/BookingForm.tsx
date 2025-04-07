@@ -295,7 +295,7 @@ export const BookingForm = ({
 
       toast.success('Booking created');
       toast('Email notifications sent', {
-        description: `To ${studentEmail}, ${currentUser.email}, and super@codelab.edu`,
+        description: `To ${studentEmail}, ${currentUser.email}`,
       });
 
       setDummy(!dummy);
@@ -342,14 +342,12 @@ export const BookingForm = ({
         <div
           className={`grid ${
             mode === 'select' ? 'md:grid-cols-2' : 'grid-cols-1'
-          } gap-4`}
-        >
+          } gap-4`}>
           <div className={mode === 'create' ? 'md:col-span-2' : ''}>
             <Label>Student Mode</Label>
             <Select
               value={mode}
-              onValueChange={(v: 'create' | 'select') => setMode(v)}
-            >
+              onValueChange={(v: 'create' | 'select') => setMode(v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select mode" />
               </SelectTrigger>
@@ -365,8 +363,7 @@ export const BookingForm = ({
               <Label htmlFor="studentSearch">Search Student</Label>
               <Select
                 value={selectedStudentId}
-                onValueChange={handleStudentSelect}
-              >
+                onValueChange={handleStudentSelect}>
                 <SelectTrigger id="studentSearch">
                   <SelectValue placeholder="Search by name or roll" />
                 </SelectTrigger>
@@ -435,8 +432,7 @@ export const BookingForm = ({
             <Select
               value={selectedComputer}
               onValueChange={setSelectedComputer}
-              required
-            >
+              required>
               <SelectTrigger id="computer">
                 <SelectValue placeholder="Select computer" />
               </SelectTrigger>
